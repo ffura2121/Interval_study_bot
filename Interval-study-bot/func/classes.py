@@ -15,7 +15,13 @@ class Theme():
         self.name = name
         self.dict_words = {}
 
+#============ Клас для додавання слів ============
+#============ async def add_word ============
+
+class AddWord(StatesGroup):
+    word = State()
+    translate = State()
 
 #============ Список з об'єктами Theme ============
 #============ Довелось винести бо був циклічний імопрт і не працювала kb ============
-list_themes = []
+list_themes = [Theme("IT")]

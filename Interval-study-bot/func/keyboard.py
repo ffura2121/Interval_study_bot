@@ -7,10 +7,11 @@ def inline_kb_builder():
 
     builder = InlineKeyboardBuilder()
 
-    for theme in lt:
-        builder.button(text=theme.name, url="https://www.youtube.com/") #замість callback постав url як тимчасова міра, щоб не було помилок
-
-    builder.adjust(5)
+    for index,theme in enumerate(lt):
+        builder.button(
+            text=theme.name, 
+            callback_data=f"theme_{index}"
+            )
     return builder.as_markup()
 
 
