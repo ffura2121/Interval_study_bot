@@ -2,7 +2,7 @@ from aiogram import F, Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from func.classes import CreateTheme, AddWord, Theme, list_themes
+from func.classes import CreateTheme, AddWord, RemindWord, Theme, list_themes
 import func.keyboard as kb
 
 router = Router()
@@ -57,17 +57,18 @@ async def look_theme(message: Message):
 
 @router.message(Command("add_word"))
 async def add_word(message: Message):
-    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup=kb.inline_kb_builder())
+    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup=kb.inline_kb_builder(prefix="add"))
 
-#============ Callback ============
+#============ Callback (Додавання слів) ============
 
-@router.callback_query(F.data.startswith("theme_"))
+@router.callback_query(F.data.startswith("add_"))
 async def add_word(callback: CallbackQuery, state: FSMContext):
     index = int(callback.data.split("_")[1])
 
     await state.update_data(theme_index = index)
     await state.set_state(AddWord.word)
-    await callback.answer("напиши слово яке ти хочеш додати: ")
+    await callback.message.answer("напиши слово яке ти хочеш додати: ")
+    await callback.answer()
 
 
 @router.message(AddWord.word)
@@ -87,11 +88,14 @@ async def process_second_word(message: Message, state: FSMContext):
     word = data["word"]
     translate = data["translate"]
 
-    # Додаємо у словник потрібної теми
+#============ Додавання слова до теми ============
+
     list_themes[theme_index].dict_words[word] = translate
 
     await message.answer(f"Слово '{word}' з перекладом '{translate}' додано ✅")
     await state.clear()
+
+#============ Показ всіх слів у темах ============
 
 @router.message(Command("show_words"))
 async def show_words(message: Message):
@@ -111,12 +115,63 @@ async def show_words(message: Message):
 
     await message.answer(text)
 
+#============ Початок повторення ============
 
+@router.message(Command("remind"))
+async def add_word(message: Message):
+    await message.answer("Обери тему для повторення слів", reply_markup=kb.inline_kb_builder(prefix="remind"))
 
+#============ Callback (Повторення слів) ============
 
+@router.callback_query(F.data.startswith("remind_"))
+async def process_remind_word(callback: CallbackQuery, state: FSMContext):
+    index = int(callback.data.split("_")[1])
+    selected_theme = list_themes[index - 1]
 
+    await callback.message.answer(f"Ви обрали тему: {selected_theme.name}")
+    await callback.message.answer(f"Розпочнемо!")
 
+    words = list(selected_theme.dict_words.items())
     
+    first_key, _ = words[0]
+    await callback.message.answer(first_key, reply_markup=kb.yes_or_no())
+
+    await state.update_data(
+        theme_index = index - 1,
+        words = words,
+        i = 0
+    )
+    await state.set_state(RemindWord.waiting_answer)
+
+
+@router.message(RemindWord.waiting_answer)
+async def process_continue(message: Message, state: FSMContext):
+    data = await state.get_data()
+
+    words = data["words"]
+    i = data["i"]
+
+    key, translate = words[i]
+
+    if message.text == "Пам'ятаю✅":
+        await message.answer(f"Молодець!\nПереклад: {translate}")
+    else:
+        await message.answer(f"Нічого страшного\nПереклад: {translate}")
+
+    i += 1
+    if i >= len(words):
+        await message.answer("Повторення завершено✅")
+        await state.clear()
+        return
+    
+    await state.update_data(i=i)
+
+    next_key, _ = words[i]
+    await message.answer(next_key, reply_markup=kb.yes_or_no())
+
+
+
+
 
 #============ команда help ============
 
@@ -129,6 +184,6 @@ async def help(message: Message):
 /guide - інструкція по використання бота
 /help - список всіх існуючих команд
 /study - ===
-/remind - ===
+/remind - розпочати повторення слів
 /show_words - перегляд слів у темі
                          """)

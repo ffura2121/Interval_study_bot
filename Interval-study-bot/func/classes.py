@@ -22,6 +22,13 @@ class AddWord(StatesGroup):
     word = State()
     translate = State()
 
+#============ Клас для повторення слів ============
+#============ async def process_remind_word ============
+
+class RemindWord(StatesGroup):
+    waiting_answer = State()
+    
+
 #============ Список з об'єктами Theme ============
 #============ Довелось винести бо був циклічний імопрт і не працювала kb ============
 list_themes = [Theme("IT")]
