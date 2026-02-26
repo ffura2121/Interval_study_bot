@@ -5,6 +5,9 @@ from aiogram.fsm.state import StatesGroup, State
 
 class CreateTheme(StatesGroup):
     waiting_name = State()
+    word = State()
+    translate = State()
+    continue_process = State()
 
 #============ Клас для тем ============
 #============ process_theme_name ============

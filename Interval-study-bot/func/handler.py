@@ -26,7 +26,7 @@ async def create_new_theme(message: Message, state: FSMContext):
 
 
 @router.message(CreateTheme.waiting_name)
-async def process_theme_name(message: Message, state: FSMContext):
+async def process_create_theme(message: Message, state: FSMContext):
     title_name = message.text
 
     exists = False
@@ -44,8 +44,60 @@ async def process_theme_name(message: Message, state: FSMContext):
         title_class = Theme(title_name)
         list_themes.append(title_class)
         await message.answer(f"Тема '{title_class.name}' створена!")
-        await state.clear()
+        
 
+#============ Додавання слова до теми ============
+
+    index_theme = int(len(list_themes) - 1)
+    await state.update_data(
+        name = title_class.name,
+        index_theme = index_theme
+        )
+    await message.answer("Тепер давай додамо твоє перше слово для цієї теми!\n\nНапиши спочатку слово, яке ти хочеш повторювати")
+    await state.set_state(CreateTheme.word)
+
+@router.message(CreateTheme.word)
+async def process_add_word(message: Message, state: FSMContext):
+    
+    await state.update_data(word = message.text)
+    await state.set_state(CreateTheme.translate)
+    await message.answer("Напишіть переклад")
+
+@router.message(CreateTheme.translate)
+async def process_add_translate(message: Message, state: FSMContext):
+
+    await state.update_data(translate = message.text)
+
+    data = await state.get_data()
+    index_theme = data["index_theme"]
+    word = data["word"]
+    translate = data["translate"]
+
+    list_themes[index_theme].dict_words[word] = translate
+    await message.answer(f"Слово '{word}' з перекладом '{translate}' додано ✅")
+    
+
+    await message.answer("Бажаєш додати наступне слово?", reply_markup=kb.yes_or_no())
+    await state.set_state(CreateTheme.continue_process)
+
+#============ Запит на продовження додавання слів до теми ============
+
+@router.message(CreateTheme.continue_process)
+async def process_continue_process(message: Message, state: FSMContext):
+
+    await state.update_data(answer = message.text)
+
+    data = await state.get_data()
+    answer = data["answer"]
+    name = data["name"]
+
+    if answer == "Так✅":
+        await state.set_state(CreateTheme.word)
+        await message.answer("Напиши слово, яке ти хочеш повторювати")
+    else:
+        await message.answer(f"Додавання слів до створеної теми {name} завершено✅")
+        await state.clear()
+        
 #============ Перегляд існуючих тем ============
 
 @router.message(Command("theme"))
@@ -134,7 +186,7 @@ async def process_remind_word(callback: CallbackQuery, state: FSMContext):
     words = list(selected_theme.dict_words.items())
     
     first_key, _ = words[0]
-    await callback.message.answer(first_key, reply_markup=kb.yes_or_no())
+    await callback.message.answer(first_key, reply_markup=kb.remember_or_no_remember()())
 
     await state.update_data(
         theme_index = index - 1,
@@ -168,10 +220,6 @@ async def process_continue(message: Message, state: FSMContext):
 
     next_key, _ = words[i]
     await message.answer(next_key, reply_markup=kb.yes_or_no())
-
-
-
-
 
 #============ команда help ============
 
