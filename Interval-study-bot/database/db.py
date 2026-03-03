@@ -1,6 +1,4 @@
-from database.connect import create_pool
-import aiomysql
-
+from connect import create_pool
 
 async def execute_query(pool, sql): #Для змін у бд, CREATE, INSERT, UPDATE, DELETE
     async with pool.acquire() as conn:
@@ -14,16 +12,44 @@ async def fetch_query(pool, sql): # Для SELECT
             await cur.execute(sql)
             return await cur.fetchall()
 
+#Створення бд
 
-create_db = "CREATE DATABASE db_for_yg_bot"
+create_db = "CREATE DATABASE IF NOT EXISTS tg_bot"
 
-create_table = """
-CREATE TABLE db_for_yg_bot.users (
+#Створення таблиці "users"
+
+create_table_users = """
+CREATE TABLE IF NOT EXISTS tg_bot.users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50)
+    telegram_id VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(50) NOT NULL
 )
 """
 
-insert_user = "INSERT INTO my_db.users (name) VALUES ('Ivan')"
+#Створення таблиці "themes"
 
-select_users = "SELECT * FROM my_db.users"
+create_table_themes = """
+CREATE TABLE IF NOT EXISTS tg_bot.themes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    FOREIGN KEY (user_id) REFERENCES tg_bot.users(id) ON DELETE CASCADE
+)
+"""
+
+#Створення таблиці "words"
+
+create_table_words = """
+CREATE TABLE IF NOT EXISTS tg_bot.words (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    theme_id INT NOT NULL,
+    word VARCHAR(100) NOT NULL,
+    translation VARCHAR(100) NOT NULL,
+    FOREIGN KEY (theme_id) REFERENCES tg_bot.themes(id) ON DELETE CASCADE
+)
+"""
+
+async def add_user(pool, telegram_id, name):
+    sql = "INSERT IGNORE INTO users (telegram_id, name) VALUES (%s, %s)"
+    await execute_query(pool, sql, (telegram_id, name))
+

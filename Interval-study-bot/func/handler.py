@@ -5,14 +5,27 @@ from aiogram.fsm.context import FSMContext
 from func.classes import CreateTheme, AddWord, RemindWord, Theme, list_themes
 import func.keyboard as kb
 
+#Імпорт бд
+from database.connect import create_pool
+from database.db import add_user
+
 router = Router()
 
+#Створення пул для бд
+pool = None
 
+async def setup_pool():
+    global pool
+    if pool is None:
+        pool = await create_pool()
 
 #============ Старт ============
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
+    await setup_pool()
+    await add_user(pool, message.from_user.id, message.from_user.full_name)
+
     await message.answer(f"Привіт {message.from_user.full_name}!")
     await message.answer(f"Я бот, який допомагає вивчати слова, завдяки методу інтервально повторення")
     await message.answer(f"Натисни /help, щоб побачити весь мій функціонал")
