@@ -1,16 +1,19 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from func.classes import list_themes as lt
+import database.connect as db
+from database.db import db_select_all_themes_for_kb, db_select_id_user
 
 
-def inline_kb_builder(prefix: str = "theme"):
 
+async def inline_kb_builder(tg_user_id, prefix: str = "theme"):
+    user_id = await db_select_id_user(db.pool, tg_user_id)
+    lt = await db_select_all_themes_for_kb(db.pool, user_id)
     builder = InlineKeyboardBuilder()
 
-    for index,theme in enumerate(lt):
+    for theme in (lt):
         builder.button(
-            text=theme.name, 
-            callback_data=f"{prefix}_{index}"
+            text=theme["name"], 
+            callback_data=f"{prefix}_{theme['id']}"
             )
     return builder.as_markup()
 
@@ -29,6 +32,6 @@ def yes_or_no():
         ]
     kb = ReplyKeyboardMarkup(keyboard = reply_kb,resize_keyboard=True)
     return kb
-    
+
 
 

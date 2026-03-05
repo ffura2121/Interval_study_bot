@@ -6,25 +6,17 @@ from func.classes import CreateTheme, AddWord, RemindWord, Theme, list_themes
 import func.keyboard as kb
 
 #Імпорт бд
-from database.connect import create_pool
-from database.db import add_user
+import database.connect as db
+from database.db import db_add_user,db_add_theme, db_add_word
+from database.db import db_select_id_user, db_select_all_themes,db_select_all_word_in_theme
 
 router = Router()
-
-#Створення пул для бд
-pool = None
-
-async def setup_pool():
-    global pool
-    if pool is None:
-        pool = await create_pool()
 
 #============ Старт ============
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
-    await setup_pool()
-    await add_user(pool, message.from_user.id, message.from_user.full_name)
+    await db_add_user(db.pool, message.from_user.id, message.from_user.full_name)
 
     await message.answer(f"Привіт {message.from_user.full_name}!")
     await message.answer(f"Я бот, який допомагає вивчати слова, завдяки методу інтервально повторення")
@@ -53,9 +45,12 @@ async def process_create_theme(message: Message, state: FSMContext):
         await message.answer("Вибачте, тема з такою назвою вже створенна")
         await state.clear()
     else:
+        tg_user_id = message.from_user.id
+        user_id = await db_select_id_user(db.pool, tg_user_id)
+        await db_add_theme(db.pool, user_id, title_name)
 
         title_class = Theme(title_name)
-        list_themes.append(title_class)
+        list_themes.append(title_class) 
         await message.answer(f"Тема '{title_class.name}' створена!")
         
 
@@ -85,6 +80,9 @@ async def process_add_translate(message: Message, state: FSMContext):
     index_theme = data["index_theme"]
     word = data["word"]
     translate = data["translate"]
+
+    # index_theme - це айді теми яка була тільки створенна
+    await db_add_word(db.pool, index_theme, word, translate)
 
     list_themes[index_theme].dict_words[word] = translate
     await message.answer(f"Слово '{word}' з перекладом '{translate}' додано ✅")
@@ -116,21 +114,27 @@ async def process_continue_process(message: Message, state: FSMContext):
 @router.message(Command("theme"))
 async def look_theme(message: Message):
 
-    await message.answer("Список ваших тем:\n" + " ,".join(theme.name for theme in list_themes))
+    tg_user_id = message.from_user.id
+    user_id = await db_select_id_user(db.pool,tg_user_id)
+    await message.answer(await db_select_all_themes(db.pool, user_id))
 
 #============ Додавання слів у існуючі теми ============
 
 @router.message(Command("add_word"))
 async def add_word(message: Message):
-    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup=kb.inline_kb_builder(prefix="add"))
+    tg_user_id = message.from_user.id
+
+    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="add"))
+
+
 
 #============ Callback (Додавання слів) ============
 
 @router.callback_query(F.data.startswith("add_"))
 async def add_word(callback: CallbackQuery, state: FSMContext):
-    index = int(callback.data.split("_")[1])
+    theme_id = int(callback.data.split("_")[1])
 
-    await state.update_data(theme_index = index)
+    await state.update_data(theme_id = theme_id)
     await state.set_state(AddWord.word)
     await callback.message.answer("напиши слово яке ти хочеш додати: ")
     await callback.answer()
@@ -149,13 +153,13 @@ async def process_second_word(message: Message, state: FSMContext):
     await state.update_data(translate = message.text)
     
     data = await state.get_data()
-    theme_index = data["theme_index"]
+    theme_id = data["theme_id"]
     word = data["word"]
     translate = data["translate"]
 
 #============ Додавання слова до теми ============
 
-    list_themes[theme_index].dict_words[word] = translate
+    await db_add_word(db.pool, theme_id, word, translate)
 
     await message.answer(f"Слово '{word}' з перекладом '{translate}' додано ✅")
     await state.clear()
@@ -164,27 +168,45 @@ async def process_second_word(message: Message, state: FSMContext):
 
 @router.message(Command("show_words"))
 async def show_words(message: Message):
-    if not list_themes:
-        await message.answer("Тем ще немає 😅")
-        return
+    tg_user_id = message.from_user.id
+    await message.answer("Обери тему для перегляду слів", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="show"))
 
-    text = ""
-    for i, theme in enumerate(list_themes):
-        text += f"Тема {i+1}: {theme.name}\n"
-        if theme.dict_words:
-            for word, translate in theme.dict_words.items():
-                text += f"  {word} → {translate}\n"
-        else:
-            text += "  Слів ще немає\n"
-        text += "\n"
+@router.callback_query(F.data.startswith("show_"))
+async def process_show_word(callback: CallbackQuery):
+    theme_id = int(callback.data.split("_")[1])
+    word_list = await db_select_all_word_in_theme(db.pool, theme_id)
 
-    await message.answer(text)
+    if word_list:
+        result = "\n".join(word_list)
+        await callback.message.answer(f"Список всіх слів у темі:\n{result}")
+        await callback.answer()
+    else:
+        await callback.message.answer("У даній темі наразі немає слів")
+        await callback.answer()
+
+
+    # if not list_themes:
+    #     await message.answer("Тем ще немає 😅")
+    #     return
+
+    # text = ""
+    # for i, theme in enumerate(list_themes):
+    #     text += f"Тема {i+1}: {theme.name}\n"
+    #     if theme.dict_words:
+    #         for word, translate in theme.dict_words.items():
+    #             text += f"  {word} → {translate}\n"
+    #     else:
+    #         text += "  Слів ще немає\n"
+    #     text += "\n"
+
+    # await message.answer(text)
 
 #============ Початок повторення ============
 
 @router.message(Command("remind"))
 async def add_word(message: Message):
-    await message.answer("Обери тему для повторення слів", reply_markup=kb.inline_kb_builder(prefix="remind"))
+    tg_user_id = message.from_user.id
+    await message.answer("Обери тему для повторення слів", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="remind"))
 
 #============ Callback (Повторення слів) ============
 
@@ -238,13 +260,16 @@ async def process_continue(message: Message, state: FSMContext):
 
 @router.message(Command("help"))
 async def help(message: Message):
-    await message.answer("""/start - початок бота
+    await message.answer(""" Що вже реалізовано:
+/start - початок бота
 /theme - перегляд існуючих тем зі словами
 /create_new_theme - створення нової теми
 /add_word - додавання слів до існуючих тем
-/guide - інструкція по використання бота
-/help - список всіх існуючих команд
-/study - ===
 /remind - розпочати повторення слів
 /show_words - перегляд слів у темі
-                         """)
+/help - список всіх існуючих команд
+
+                         
+Що ще треба зробити (можливо):              
+/guide - інструкція по використання бота
+""")
