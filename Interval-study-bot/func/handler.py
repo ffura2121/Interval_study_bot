@@ -8,7 +8,7 @@ import func.keyboard as kb
 #Імпорт бд
 import database.connect as db
 from database.db import db_add_user,db_add_theme, db_add_word
-from database.db import db_select_id_user, db_select_all_themes,db_select_all_word_in_theme
+from database.db import db_select_id_user, db_select_all_themes,db_select_all_word_in_theme, db_select_name_themes, db_select_id_new_theme
 
 router = Router()
 
@@ -35,9 +35,9 @@ async def process_create_theme(message: Message, state: FSMContext):
     title_name = message.text
 
     exists = False
-
-    for theme_class in list_themes:
-        if theme_class.name == title_name:
+    lt = await db_select_name_themes(db.pool)
+    for theme in lt:
+        if theme[0] == title_name:
             exists = True
             break
 
@@ -49,17 +49,15 @@ async def process_create_theme(message: Message, state: FSMContext):
         user_id = await db_select_id_user(db.pool, tg_user_id)
         await db_add_theme(db.pool, user_id, title_name)
 
-        title_class = Theme(title_name)
-        list_themes.append(title_class) 
-        await message.answer(f"Тема '{title_class.name}' створена!")
+        await message.answer(f"Тема '{title_name}' створена!")
         
 
 #============ Додавання слова до теми ============
+    new_theme_id = await db_select_id_new_theme(db.pool, title_name)
 
-    index_theme = int(len(list_themes) - 1)
     await state.update_data(
-        name = title_class.name,
-        index_theme = index_theme
+        name = title_name,
+        new_theme_id = new_theme_id
         )
     await message.answer("Тепер давай додамо твоє перше слово для цієї теми!\n\nНапиши спочатку слово, яке ти хочеш повторювати")
     await state.set_state(CreateTheme.word)
@@ -77,16 +75,12 @@ async def process_add_translate(message: Message, state: FSMContext):
     await state.update_data(translate = message.text)
 
     data = await state.get_data()
-    index_theme = data["index_theme"]
+    new_theme_id = data["new_theme_id"]
     word = data["word"]
     translate = data["translate"]
 
-    # index_theme - це айді теми яка була тільки створенна
-    await db_add_word(db.pool, index_theme, word, translate)
-
-    list_themes[index_theme].dict_words[word] = translate
+    await db_add_word(db.pool, new_theme_id, word, translate)
     await message.answer(f"Слово '{word}' з перекладом '{translate}' додано ✅")
-    
 
     await message.answer("Бажаєш додати наступне слово?", reply_markup=kb.yes_or_no())
     await state.set_state(CreateTheme.continue_process)
@@ -183,23 +177,6 @@ async def process_show_word(callback: CallbackQuery):
     else:
         await callback.message.answer("У даній темі наразі немає слів")
         await callback.answer()
-
-
-    # if not list_themes:
-    #     await message.answer("Тем ще немає 😅")
-    #     return
-
-    # text = ""
-    # for i, theme in enumerate(list_themes):
-    #     text += f"Тема {i+1}: {theme.name}\n"
-    #     if theme.dict_words:
-    #         for word, translate in theme.dict_words.items():
-    #             text += f"  {word} → {translate}\n"
-    #     else:
-    #         text += "  Слів ще немає\n"
-    #     text += "\n"
-
-    # await message.answer(text)
 
 #============ Початок повторення ============
 

@@ -63,13 +63,18 @@ async def db_add_word(pool, index_theme, word, translate):
     await execute_query(pool, sql, (index_theme, word, translate))
 
 #Виведення
+async def db_select_id_new_theme(pool, title_name):
+    sql="SELECT id FROM themes WHERE name = %s"
+    result = await fetch_query(pool, sql, (title_name,))
+    return result[0][0]
+
 async def db_select_id_user(pool, name):
-    sql = "SELECT id FROM users WHERE telegram_id = '%s'"
+    sql = "SELECT id FROM users WHERE telegram_id = %s"
     result = await fetch_query(pool, sql, (name,))
     return result[0][0]
 
 async def db_select_all_themes(pool, user_id):
-    sql = "SELECT name FROM themes WHERE user_id = '%s'"
+    sql = "SELECT name FROM themes WHERE user_id = %s"
     result = await fetch_query(pool, sql, (user_id,))
     str_themes = "Список існуючих тем: "
     for theme in result:
@@ -79,7 +84,7 @@ async def db_select_all_themes(pool, user_id):
     return str_themes
 
 async def db_select_all_themes_for_kb(pool, user_id):
-    sql = "SELECT id,name FROM themes WHERE user_id = '%s'"
+    sql = "SELECT id,name FROM themes WHERE user_id = %s"
     result = await fetch_query(pool, sql, (user_id,))
     list_themes = []
     for id,theme in result:
@@ -88,12 +93,12 @@ async def db_select_all_themes_for_kb(pool, user_id):
     return list_themes
 
 async def db_select_id_theme(pool, name):
-    sql = "SELECT id FROM themes WHERE name = '%s'"
-    result = await fetch_query(pool, sql, (name))
+    sql = "SELECT id FROM themes WHERE name = %s"
+    result = await fetch_query(pool, sql, (name,))
     return result[0][0]
 
 async def db_select_all_word_in_theme(pool, theme_id):
-    sql = "SELECT word, translation FROM words WHERE theme_id = '%s'"
+    sql = "SELECT word, translation FROM words WHERE theme_id = %s"
     result = await fetch_query(pool, sql, (theme_id,))
     if not result:
         return []
@@ -103,5 +108,10 @@ async def db_select_all_word_in_theme(pool, theme_id):
         list_word.append(f"{count}) {word} => {translation}")
         count += 1
     return list_word
+
+async def db_select_name_themes(pool):
+    sql = "SELECT name FROM themes"
+    result = await fetch_query(pool, sql)
+    return result
 
 
