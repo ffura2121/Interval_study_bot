@@ -2,7 +2,7 @@ from aiogram import F, Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from func.classes import CreateTheme, AddWord, RemindWord, Theme, list_themes
+from func.classes import CreateTheme, AddWord, DeleteWord, RemindWord
 import func.keyboard as kb
 from datetime import datetime, timedelta
 
@@ -10,9 +10,10 @@ from datetime import datetime, timedelta
 import database.connect as db
 from database.db import db_add_user,db_add_theme, db_add_word
 from database.db import (db_select_id_user, db_select_all_themes,db_select_all_word_in_theme,
-                         db_select_name_themes,db_select_id_new_theme,db_select_all_word_from_theme_in_list_tuple,
+                         db_select_name_themes,db_select_id_new_theme,
                          db_select_words_repetition_now_1, db_select_words_repetition_now_2,
-                         db_select_update_next_review_1, db_select_update_next_review_2)
+                         db_select_update_next_review_1, db_select_update_next_review_2,
+                         db_delete_word,db_delete_theme)
 
 router = Router()
 
@@ -29,6 +30,7 @@ async def cmd_start(message:Message):
 #============ Створення теми ============
 
 @router.message(Command("create_new_theme"))
+@router.message(F.text == "Створити нову тему📝")
 async def create_new_theme(message: Message, state: FSMContext):
     await message.answer("напиши назву теми: ")
     await state.set_state(CreateTheme.waiting_name)
@@ -54,7 +56,6 @@ async def process_create_theme(message: Message, state: FSMContext):
         await db_add_theme(db.pool, user_id, title_name)
 
         await message.answer(f"Тема '{title_name}' створена!")
-        
 
 #============ Додавання слова до теми ============
     new_theme_id = await db_select_id_new_theme(db.pool, title_name)
@@ -109,10 +110,11 @@ async def process_continue_process(message: Message, state: FSMContext):
     else:
         await message.answer(f"Додавання слів до створеної теми {name} завершено✅")
         await state.clear()
-        
+
 #============ Перегляд існуючих тем ============
 
 @router.message(Command("theme"))
+@router.message(F.text == "Перегляд існуючих тем📂")
 async def look_theme(message: Message):
 
     tg_user_id = message.from_user.id
@@ -122,9 +124,9 @@ async def look_theme(message: Message):
 #============ Додавання слів у існуючі теми ============
 
 @router.message(Command("add_word"))
+@router.message(F.text == "Додавання слів до теми🖋")
 async def add_word(message: Message):
     tg_user_id = message.from_user.id
-
     await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="add"))
 
 #============ Callback (Додавання слів) ============
@@ -168,6 +170,7 @@ async def process_second_word(message: Message, state: FSMContext):
 #============ Показ всіх слів у темах ============
 
 @router.message(Command("show_words"))
+@router.message(F.text == "Перегляд слів у темі📖")
 async def show_words(message: Message):
     tg_user_id = message.from_user.id
     await message.answer("Обери тему для перегляду слів", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="show"))
@@ -185,7 +188,69 @@ async def process_show_word(callback: CallbackQuery):
         await callback.message.answer("У даній темі наразі немає слів")
         await callback.answer()
 
-#============ Початок повторення ============
+#============ Видалення теми ============
+
+@router.message(Command("delete_theme"))
+async def delete_theme(message: Message):
+    tg_user_id = message.from_user.id
+    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="delete_theme"))
+
+@router.callback_query(F.data.startswith("delete_theme_"))
+async def add_word(callback: CallbackQuery):
+    theme_id = int(callback.data.split("_")[2])
+    
+    await db_delete_theme(db.pool, theme_id)
+    await callback.message.answer(f"Тема була успішно видалена!")
+
+#============ Видалення слів ============
+
+@router.message(Command("delete_word"))
+async def delete_theme(message: Message, state: FSMContext):
+    tg_user_id = message.from_user.id
+    await message.answer("До якої теми ти хочеш додати нові слова?", reply_markup= await kb.inline_kb_builder(tg_user_id, prefix="delete_word"))
+
+@router.callback_query(F.data.startswith("delete_word_"))
+async def add_word(callback: CallbackQuery, state: FSMContext):
+    theme_id = int(callback.data.split("_")[2])
+    word_list = await db_select_all_word_in_theme(db.pool, theme_id)
+
+    if word_list:
+        result = "\n".join(word_list)
+        await callback.message.answer(f"Список всіх слів у темі:\n{result}")
+        await callback.answer() 
+    else:
+        await callback.message.answer("У даній темі наразі немає слів")
+        await callback.answer()
+    
+    await state.update_data(
+        word_list = word_list
+    )
+    await callback.message.answer("напиши слово яке ти хочеш видалити")
+    await state.set_state(DeleteWord.delete_word)
+    
+
+@router.message(DeleteWord.delete_word)
+async def process_add_translate(message: Message, state: FSMContext):
+    data = await state.get_data()
+    word_list = data["word_list"]
+    word = message.text
+
+    found = False
+    
+    for w in word_list:
+        if word in w:
+            found = True
+            break
+
+    if found:
+        await db_delete_word(db.pool, word)
+        await message.answer(f"Слово {word}, було успішно видалене!")
+    else:
+        await message.answer("Вибачте, трапилась помилка, перевірте та повторіть спробу ще раз")
+
+    await state.clear()
+
+#============ Повторення слів ============
 
 @router.message(Command("remind"))
 async def add_word(message: Message):
@@ -195,6 +260,7 @@ async def add_word(message: Message):
 #============ Callback (Повторення слів) ============
 
 @router.callback_query(F.data.startswith("remind_"))
+@router.message(F.text == "Повторення слів🔥")
 async def process_remind_word(callback: CallbackQuery, state: FSMContext):
     theme_id = int(callback.data.split("_")[1])
 
@@ -229,10 +295,10 @@ async def process_continue(message: Message, state: FSMContext):
 
     intervals = {
         0: timedelta(minutes=0),
-        1: timedelta(minutes=1),
-        2: timedelta(minutes=5),
-        3: timedelta(minutes=15),
-        4: timedelta(hours=1)
+        1: timedelta(minutes=15),
+        2: timedelta(minutes=30),
+        3: timedelta(hours=1),
+        4: timedelta(hours=3)
     }
 
     #========= Оновлення interval_stage =========
@@ -248,7 +314,7 @@ async def process_continue(message: Message, state: FSMContext):
 
     #========= Оновлення таблиці words_interval =========
     id_word = await db_select_update_next_review_1(db.pool, word, translation)
-    await db_select_update_next_review_2(db.pool, next_review, id_word)
+    await db_select_update_next_review_2(db.pool, interval_stage, next_review, id_word)
 
     i += 1
     if i >= len(words):
@@ -260,9 +326,38 @@ async def process_continue(message: Message, state: FSMContext):
     next_word, _, _ = words[i]
     await message.answer(next_word, reply_markup=kb.remember_or_no_remember())
 
+#============ Main_Menu ============
+
+@router.message(Command("menu"))
+async def menu(message: Message):
+    await message.answer("Головне меню",reply_markup=kb.main_menu())
+
+#============ guide ============
+
+@router.message(Command("guide"))
+@router.message(F.text == "Інструкція📋")
+async def guide(message: Message):
+    await message.answer("""Інструкція по використанню даного телеграм-бота:
+                         
+1. Для початку ознайомтесь з існуючимим командами телеграм-бота, написавши у чат /help, або натиснувши у головному меню на "Допомога⚙️".
+2. Створіть нову тему, після створення нової теми, в додасте до неї нові слова.
+3. Після створення теми, ви можете почати своє повторення, написавши у чат /remind, або натиснувши у головному меню на "Повторення слів🔥".
+
+Інтервали повторення:
+                         
+- Якщо слово було тільки додано, воно немає інтервалу
+- Пілся першого повторення, інтервал складає 15 хвилин, потім 30 хвилин, 1 година та 3 години.
+- Кожне успішне повторення, інтервал збільшується на 1.
+- Якщо слово ви забули, то інтервал повторення онольовується та повторення слова відбувається спочатку.
+
+                         
+Вдалого користування телеграм_ботом😁
+""")
+
 #============ команда help ============
 
 @router.message(Command("help"))
+@router.message(F.text == "Допомога⚙️")
 async def help(message: Message):
     await message.answer(""" Що вже реалізовано:
 /start - початок бота
@@ -271,60 +366,9 @@ async def help(message: Message):
 /add_word - додавання слів до існуючих тем
 /remind - розпочати повторення слів
 /show_words - перегляд слів у темі
-/help - список всіх існуючих команд
-
-                         
-Що ще треба зробити (можливо):              
+/delete_theme - видалення теми
+/delete_word - видалення слів
+/menu - відкриття головного меню
 /guide - інструкція по використання бота
+/help - список всіх існуючих команд
 """)
-
-
-
-
-
-
-# @router.callback_query(F.data.startswith("remind_"))
-# async def process_remind_word(callback: CallbackQuery, state: FSMContext):
-#     index = int(callback.data.split("_")[1])
-#     selected_theme = list_themes[index - 1]
-
-#     await callback.message.answer(f"Ви обрали тему: {selected_theme.name}")
-#     await callback.message.answer(f"Розпочнемо!")
-
-#     words = list(selected_theme.dict_words.items())
-    
-#     first_key, _ = words[0]
-#     await callback.message.answer(first_key, reply_markup=kb.remember_or_no_remember()())
-
-#     await state.update_data(
-#         theme_index = index - 1,
-#         words = words,
-#         i = 0
-#     )
-#     await state.set_state(RemindWord.waiting_answer)
-
-
-# @router.message(RemindWord.waiting_answer)
-# async def process_continue(message: Message, state: FSMContext):
-#     data = await state.get_data()
-
-#     words = data["words"]
-#     i = data["i"]
-
-#     key, translate = words[i]
-
-#     if message.text == "Пам'ятаю✅":
-#         await message.answer(f"Молодець!\nПереклад: {translate}")
-#     else:
-#         await message.answer(f"Нічого страшного\nПереклад: {translate}")
-
-#     i += 1
-#     if i >= len(words):
-#         await message.answer("Повторення завершено✅")
-#         await state.clear()
-#         return
-    
-#     await state.update_data(i=i)
-
-#     next_key, _ = words[i]
-#     await message.answer(next_key, reply_markup=kb.yes_or_no())

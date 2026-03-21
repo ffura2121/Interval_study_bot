@@ -25,6 +25,12 @@ class AddWord(StatesGroup):
     word = State()
     translate = State()
 
+#============ Клас для додавання слів ============
+#============ async def add_word ============
+
+class DeleteWord(StatesGroup):
+    delete_word = State()
+
 #============ Клас для повторення слів ============
 #============ async def process_remind_word ============
 

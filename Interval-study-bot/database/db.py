@@ -185,6 +185,16 @@ async def db_select_update_next_review_1(pool, word, translation):
     return result[0][0]
 
 #Оновлення
-async def db_select_update_next_review_2(pool, next_review, id_word):
-    sql = "UPDATE words_interval SET next_review = %s WHERE word_id = %s"
-    await execute_query(pool, sql, (next_review, id_word))
+async def db_select_update_next_review_2(pool, interval_stage, next_review, id_word):
+    sql = "UPDATE words_interval SET interval_stage = %s, next_review = %s WHERE word_id = %s"
+    await execute_query(pool, sql, (interval_stage, next_review, id_word))
+
+#Видалення
+
+async def db_delete_word(pool, word):
+    sql = "DELETE FROM words WHERE word = %s"
+    await execute_query(pool, sql, (word,))
+
+async def db_delete_theme(pool, id):
+    sql = "DELETE FROM themes WHERE id = %s"
+    await execute_query(pool, sql, (id,))

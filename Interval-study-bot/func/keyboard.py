@@ -33,5 +33,15 @@ def yes_or_no():
     kb = ReplyKeyboardMarkup(keyboard = reply_kb,resize_keyboard=True)
     return kb
 
+def main_menu():
+    reply_kb = [
+        [KeyboardButton(text="Створити нову тему📝"), KeyboardButton(text="Перегляд існуючих тем📂")],
+        [KeyboardButton(text="Додавання слів до теми🖋"), KeyboardButton(text="Перегляд слів у темі📖")],
+        [KeyboardButton(text="Повторення слів🔥"), KeyboardButton(text="Інструкція📋")],
+        [KeyboardButton(text="Допомога⚙️")] 
+    ]
+    kb = ReplyKeyboardMarkup(keyboard = reply_kb,resize_keyboard=True)
+    return kb
+
 
 
