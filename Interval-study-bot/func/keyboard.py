@@ -15,7 +15,7 @@ async def inline_kb_builder(tg_user_id, prefix: str = "theme"):
             text=theme["name"], 
             callback_data=f"{prefix}_{theme['id']}"
             )
-    return builder.as_markup()
+    return builder.adjust(3).as_markup()
 
 
 def remember_or_no_remember():
@@ -37,8 +37,8 @@ def main_menu():
     reply_kb = [
         [KeyboardButton(text="Створити нову тему📝"), KeyboardButton(text="Перегляд існуючих тем📂")],
         [KeyboardButton(text="Додавання слів до теми🖋"), KeyboardButton(text="Перегляд слів у темі📖")],
-        [KeyboardButton(text="Повторення слів🔥"), KeyboardButton(text="Інструкція📋")],
-        [KeyboardButton(text="Допомога⚙️")] 
+        [KeyboardButton(text="Видалення теми🗑"), KeyboardButton(text="Видалення слів із теми🗑")],
+        [KeyboardButton(text="Повторення слів🔥"), KeyboardButton(text="Допомога⚙️")]
     ]
     kb = ReplyKeyboardMarkup(keyboard = reply_kb,resize_keyboard=True)
     return kb

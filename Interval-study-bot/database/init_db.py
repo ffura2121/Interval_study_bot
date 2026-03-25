@@ -8,7 +8,7 @@ from db import (
 async def init():
     await db.setup_pool()
 
-    # await execute_query(db.pool, "DROP DATABASE db_for_tg_bot")
+    # await execute_query(db.pool, "DROP DATABASE tg_bot")
 
 
     #Створення бд
@@ -18,7 +18,7 @@ async def init():
     # await execute_query(db.pool, create_table_users)
     # await execute_query(db.pool, create_table_themes)
     # await execute_query(db.pool, create_table_words)
-    await execute_query(db.pool, create_table_words_interval)
+    # await execute_query(db.pool, create_table_words_interval)
 
 
     users_index = await fetch_query(db.pool, "SHOW INDEX FROM users")

@@ -24,6 +24,7 @@ class Theme():
 class AddWord(StatesGroup):
     word = State()
     translate = State()
+    continue_process = State()
 
 #============ Клас для додавання слів ============
 #============ async def add_word ============

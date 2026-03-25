@@ -54,10 +54,12 @@ CREATE TABLE IF NOT EXISTS tg_bot.words (
 create_table_words_interval = """
 CREATE TABLE IF NOT EXISTS tg_bot.words_interval (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    theme_id INT NOT NULL,
     word_id INT NOT NULL,
     user_id INT NOT NULL,
     interval_stage INT DEFAULT 0,
     next_review DATETIME DEFAULT NOW(),
+    FOREIGN KEY (theme_id) REFERENCES tg_bot.themes(id) ON DELETE CASCADE,
     FOREIGN KEY (word_id) REFERENCES tg_bot.words(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES tg_bot.users(id) ON DELETE CASCADE
 )
@@ -84,10 +86,10 @@ async def db_add_word(pool, index_theme, word, translate, user_id):
 
     # 3. Додаємо запис у words_interval
     sql_interval = """
-    INSERT INTO words_interval (word_id, user_id, interval_stage, next_review)
-    VALUES (%s, %s, 0, NOW())
+    INSERT INTO words_interval (theme_id, word_id, user_id, interval_stage, next_review)
+    VALUES (%s, %s, %s, 0, NOW())
     """
-    await execute_query(pool, sql_interval, (word_id, user_id))
+    await execute_query(pool, sql_interval, (index_theme, word_id, user_id))
 
 
 #Виведення
@@ -153,9 +155,9 @@ async def db_select_all_word_from_theme_in_list_tuple(pool, theme_id):
         list_word.append(wt)
     return list_word
 
-async def db_select_words_repetition_now_1(pool, time):
-    sql = "SELECT word_id FROM words_interval WHERE next_review <= %s"
-    result = await fetch_query(pool, sql, (time,))
+async def db_select_words_repetition_now_1(pool, theme_id, time):
+    sql = "SELECT word_id FROM words_interval WHERE theme_id = %s AND next_review <= %s"
+    result = await fetch_query(pool, sql, (theme_id, time))
     word_id = []
     for row in result:
         word_id.append(row[0])
@@ -179,12 +181,34 @@ async def db_select_words_repetition_now_2(pool, word_id):
             word_list.append((word, translation, interval_stage))
     return word_list
 
+async def db_select_reminder_1(pool):
+    sql = "SELECT theme_id FROM words_interval WHERE next_review <= NOW()"
+    result = await fetch_query(pool, sql)
+    if not result:
+        return None
+    return result[0][0]
+
+async def db_select_reminder_2(pool, theme_id):
+    sql = "SELECT name FROM themes WHERE id = %s"
+    result = await fetch_query(pool, sql, (theme_id,))
+    return result[0][0]
+
+async def db_select_reminder_3(pool, theme_id):
+    sql_1 = "SELECT user_id from themes WHERE id = %s"
+    result = await fetch_query(pool, sql_1, (theme_id,))
+    res = result[0]
+    sql_2 = "SELECT telegram_id from users WHERE id = %s"
+    tg_id = await fetch_query(pool, sql_2, (res,))
+    return tg_id[0][0]
+
+
+#Оновлення
+
 async def db_select_update_next_review_1(pool, word, translation):
     sql = "SELECT id FROM words WHERE word = %s AND translation = %s"
     result = await fetch_query(pool, sql, (word, translation))
     return result[0][0]
 
-#Оновлення
 async def db_select_update_next_review_2(pool, interval_stage, next_review, id_word):
     sql = "UPDATE words_interval SET interval_stage = %s, next_review = %s WHERE word_id = %s"
     await execute_query(pool, sql, (interval_stage, next_review, id_word))
