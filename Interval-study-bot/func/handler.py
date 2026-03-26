@@ -316,11 +316,14 @@ async def process_continue(message: Message, state: FSMContext):
     word, translation, interval_stage = words[i]
 
     intervals = {
-        0: timedelta(minutes=0),
-        1: timedelta(minutes=1),
-        2: timedelta(minutes=1),
-        3: timedelta(minutes=1),
-        4: timedelta(minutes=1)
+        0: timedelta(minutes = 1),
+        1: timedelta(hours = 1),
+        2: timedelta(hours = 12),
+        3: timedelta(days = 1),
+        4: timedelta(days = 3),
+        5: timedelta(days = 7),
+        6: timedelta(days = 14),
+        7: timedelta(days = 30)
     }
 
     #========= Оновлення interval_stage =========

@@ -181,25 +181,57 @@ async def db_select_words_repetition_now_2(pool, word_id):
             word_list.append((word, translation, interval_stage))
     return word_list
 
-async def db_select_reminder_1(pool):
-    sql = "SELECT theme_id FROM words_interval WHERE next_review <= NOW()"
-    result = await fetch_query(pool, sql)
-    if not result:
-        return None
-    return result[0][0]
+async def db_select_reminder(pool):
+    sql_1 = "SELECT theme_id FROM words_interval WHERE next_review <= NOW()"
+    list_theme_id = await fetch_query(pool, sql_1)
 
-async def db_select_reminder_2(pool, theme_id):
-    sql = "SELECT name FROM themes WHERE id = %s"
-    result = await fetch_query(pool, sql, (theme_id,))
-    return result[0][0]
+    if not list_theme_id:
+        return {}
 
-async def db_select_reminder_3(pool, theme_id):
-    sql_1 = "SELECT user_id from themes WHERE id = %s"
-    result = await fetch_query(pool, sql_1, (theme_id,))
-    res = result[0]
-    sql_2 = "SELECT telegram_id from users WHERE id = %s"
-    tg_id = await fetch_query(pool, sql_2, (res,))
-    return tg_id[0][0]
+    user_themes = {}
+
+    for (theme_id,) in list_theme_id:
+        sql_2 = "SELECT user_id, name FROM themes WHERE id = %s"
+        user_id_and_name_result = await fetch_query(pool, sql_2, (theme_id,))
+
+        if not user_id_and_name_result:
+            continue
+
+        user_id = user_id_and_name_result[0][0]
+        name = user_id_and_name_result[0][1]
+
+        sql_3 = "SELECT telegram_id FROM users WHERE id = %s"
+        tg_id_result = await fetch_query(pool, sql_3, (user_id,))
+
+        if not tg_id_result:
+            continue
+        
+        tg_id = tg_id_result[0][0]
+
+        if tg_id not in user_themes:
+            user_themes[tg_id] = []
+
+        user_themes[tg_id].append(name)
+
+    return user_themes
+
+# async def db_select_reminder_2(pool, theme_ids):
+    
+#     for id in theme_ids:
+#         sql = "SELECT name FROM themes WHERE id = %s"
+#         result = await fetch_query(pool, sql, (id,))
+#         if not result:
+#             return None
+#         else:
+#             return result[0]
+
+# async def db_select_reminder_3(pool, theme_ids):
+#     sql_1 = "SELECT user_id from themes WHERE id = %s"
+#     result = await fetch_query(pool, sql_1, (theme_ids,))
+#     res = result[0]
+#     sql_2 = "SELECT telegram_id from users WHERE id = %s"
+#     tg_id = await fetch_query(pool, sql_2, (res,))
+#     return tg_id[0][0]
 
 
 #Оновлення
@@ -222,3 +254,18 @@ async def db_delete_word(pool, word):
 async def db_delete_theme(pool, id):
     sql = "DELETE FROM themes WHERE id = %s"
     await execute_query(pool, sql, (id,))
+
+
+
+
+
+
+
+
+        #     sql_4 = "SELECT name FROM themes WHERE id = %s"
+        # name_result = await fetch_query(pool, sql_4, (theme_id,))
+
+        # if not name_result:
+        #     continue
+
+        # name = name_result[0][0]
